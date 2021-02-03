@@ -1,0 +1,1311 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Andy Dsida (ad3678)\n",
+    "### <font color = \"blue\">Final Assignment - Analyzing Immigration Sentiment of Trump vs. Other Presidents</font>\n",
+    "\n",
+    "There has been a narrative among many political pundits and news reporters that Donald Trump's discussion of immigration is a departure from traditional norms.  He has been labeled as a racist and a xenophobe and divisive terms like \"build the wall\", \"detention centers\" and \"Muslim ban\" have become synonymous with him.  Is this fair or is it some combination of a progressively harsh discourse on the topic, a justifiable posture because of the period of high immigration in the United States right now or, as President Trump has often asserted, a media attack on him for bucking the system?\n",
+    "\n",
+    "I analyzed the common denominator, and most formal discourse, of all United States presidents, the State of the Union address.  Comparing Trump's speech content to the content of all previous presidents, to modern (post-WWII) presidents, to presidents who presided over periods of similar immigration and to the most recent president from his party, George W Bush, I will try to quantify the answer to some of these quesions."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### <font color = \"blue\">Loading Environment</font>"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'/Users/adsida/OneDrive/QMSS/SOU'"
+      ]
+     },
+     "execution_count": 1,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# Getting the directory for the import set up\n",
+    "import os\n",
+    "#cwd = os.getcwd()\n",
+    "#print(cwd)\n",
+    "os.chdir(\"//users/adsida/OneDrive/QMSS/SOU\")\n",
+    "os.getcwd()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# import libraries\n",
+    "import pandas as pd\n",
+    "import nltk\n",
+    "import spacy\n",
+    "from textblob import TextBlob\n",
+    "from textblob.sentiments import NaiveBayesAnalyzer\n",
+    "import sklearn as sk\n",
+    "from sklearn.feature_extraction.text import CountVectorizer\n",
+    "from string import punctuation\n",
+    "from nltk.corpus import stopwords\n",
+    "from sklearn.feature_extraction.text import TfidfTransformer\n",
+    "from sklearn.feature_extraction.text import TfidfVectorizer\n",
+    "from nltk import word_tokenize, sent_tokenize"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### <font color = \"blue\">Loading data files</font>\n",
+    "Loading text files that contain the following State of the Union sets found here:\n",
+    "https://www.kaggle.com/rtatman/state-of-the-union-corpus-1989-2017\n",
+    "\n",
+    "Individual text files were combined using Unix (command line) commands to form the following sets of speeches:\n",
+    "<ul>All speeches<br>\n",
+    "    Trump speeches<br>\n",
+    "    George W. Bush speeches<br>\n",
+    "    Post-WWII speeches<br>\n",
+    "    Speeches by presidents during high (13%+ as percentage of total) periods</ul>"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "10542905 59616 237345 2735817\n"
+     ]
+    }
+   ],
+   "source": [
+    "## load set of all speeches\n",
+    "with open ('all.txt') as a:\n",
+    "    all_text = a.read()\n",
+    "\n",
+    "## Trump speeches\n",
+    "with open ('trump.txt') as b:\n",
+    "    trump_text = b.read()\n",
+    "\n",
+    "## George W. Bush speeches\n",
+    "with open ('gwb.txt') as c:\n",
+    "    gwb_text = c.read()\n",
+    "\n",
+    "## Post-WWII speeches\n",
+    "with open ('modern.txt') as d:\n",
+    "    modern_text = d.read()\n",
+    "\n",
+    "print(len(all_text),len(trump_text),len(gwb_text),len(modern_text))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>year</th>\n",
+       "      <th>immigrants</th>\n",
+       "      <th>percent</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <td>0</td>\n",
+       "      <td>1850</td>\n",
+       "      <td>2,244,600</td>\n",
+       "      <td>9.7</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>1</td>\n",
+       "      <td>1860</td>\n",
+       "      <td>4,138,700</td>\n",
+       "      <td>13.2</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>2</td>\n",
+       "      <td>1870</td>\n",
+       "      <td>5,567,200</td>\n",
+       "      <td>14.4</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>3</td>\n",
+       "      <td>1880</td>\n",
+       "      <td>6,679,900</td>\n",
+       "      <td>13.3</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>4</td>\n",
+       "      <td>1890</td>\n",
+       "      <td>9,249,500</td>\n",
+       "      <td>14.8</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "   year immigrants  percent\n",
+       "0  1850  2,244,600      9.7\n",
+       "1  1860  4,138,700     13.2\n",
+       "2  1870  5,567,200     14.4\n",
+       "3  1880  6,679,900     13.3\n",
+       "4  1890  9,249,500     14.8"
+      ]
+     },
+     "execution_count": 6,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# open file containing immigration percentage and send to dataframe\n",
+    "import csv\n",
+    "immigrant_percent = pd.read_csv('/Users/adsida/Downloads/immigrant_percent.csv')    \n",
+    "immigrant_percent[0:5]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>year</th>\n",
+       "      <th>immigrants</th>\n",
+       "      <th>percent</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <td>1</td>\n",
+       "      <td>1860</td>\n",
+       "      <td>4,138,700</td>\n",
+       "      <td>13.2</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>2</td>\n",
+       "      <td>1870</td>\n",
+       "      <td>5,567,200</td>\n",
+       "      <td>14.4</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>3</td>\n",
+       "      <td>1880</td>\n",
+       "      <td>6,679,900</td>\n",
+       "      <td>13.3</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>4</td>\n",
+       "      <td>1890</td>\n",
+       "      <td>9,249,500</td>\n",
+       "      <td>14.8</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>5</td>\n",
+       "      <td>1900</td>\n",
+       "      <td>10,341,300</td>\n",
+       "      <td>13.6</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>6</td>\n",
+       "      <td>1910</td>\n",
+       "      <td>13,515,900</td>\n",
+       "      <td>14.7</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>7</td>\n",
+       "      <td>1920</td>\n",
+       "      <td>13,920,700</td>\n",
+       "      <td>13.2</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>17</td>\n",
+       "      <td>2011</td>\n",
+       "      <td>40,377,900</td>\n",
+       "      <td>13.0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>18</td>\n",
+       "      <td>2012</td>\n",
+       "      <td>40,824,700</td>\n",
+       "      <td>13.0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>19</td>\n",
+       "      <td>2013</td>\n",
+       "      <td>41,348,100</td>\n",
+       "      <td>13.1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>20</td>\n",
+       "      <td>2014</td>\n",
+       "      <td>42,391,800</td>\n",
+       "      <td>13.3</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>21</td>\n",
+       "      <td>2015</td>\n",
+       "      <td>43,290,400</td>\n",
+       "      <td>13.5</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>22</td>\n",
+       "      <td>2106</td>\n",
+       "      <td>43,739,300</td>\n",
+       "      <td>13.5</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>23</td>\n",
+       "      <td>2017</td>\n",
+       "      <td>44,525,900</td>\n",
+       "      <td>13.7</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "    year  immigrants  percent\n",
+       "1   1860   4,138,700     13.2\n",
+       "2   1870   5,567,200     14.4\n",
+       "3   1880   6,679,900     13.3\n",
+       "4   1890   9,249,500     14.8\n",
+       "5   1900  10,341,300     13.6\n",
+       "6   1910  13,515,900     14.7\n",
+       "7   1920  13,920,700     13.2\n",
+       "17  2011  40,377,900     13.0\n",
+       "18  2012  40,824,700     13.0\n",
+       "19  2013  41,348,100     13.1\n",
+       "20  2014  42,391,800     13.3\n",
+       "21  2015  43,290,400     13.5\n",
+       "22  2106  43,739,300     13.5\n",
+       "23  2017  44,525,900     13.7"
+      ]
+     },
+     "execution_count": 7,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# filter to find periods of comparably high immigrant percentages\n",
+    "immigrant_percent['percent'] = pd.to_numeric(immigrant_percent['percent'],errors='coerce')\n",
+    "is_high = immigrant_percent['percent'] >= 13\n",
+    "high_imm = immigrant_percent[is_high]\n",
+    "high_imm"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "3879836\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Loading speeches from Presidents during high immigration periods (minus Trump himself)\n",
+    "\n",
+    "with open ('high.txt') as e:\n",
+    "    high_text = e.read()\n",
+    "    \n",
+    "print(len(high_text))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### <font color = \"blue\">Basic text parsing</font>"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 12,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Number of words for is  513184\n",
+      "Number of sentences is  21963\n",
+      "Number of words for is  513184\n",
+      "Number of sentences is  21963\n",
+      "Number of words for is  513184\n",
+      "Number of sentences is  21963\n",
+      "Number of words for is  513184\n",
+      "Number of sentences is  21963\n",
+      "Number of words for is  513184\n",
+      "Number of sentences is  21963\n"
+     ]
+    }
+   ],
+   "source": [
+    "#### Can't get function to work...I give up and will copy/paste for the different sets....\n",
+    "\n",
+    "text_list = (all_text, modern_text, high_text, trump_text, gwb_text)\n",
+    "\n",
+    "###\n",
+    "def tokens (text_file):  \n",
+    "    text_words = word_tokenize(text_file)\n",
+    "    text_sents = sent_tokenize(text_file)\n",
+    "    print(\"Number of words for is \", len(text_words))\n",
+    "    print(\"Number of sentences is \", len(text_sents))\n",
+    "\n",
+    "for items in text_list:\n",
+    "    tokens(modern_text)\n",
+    "###\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Number of words for all speeches is  1921579\n",
+      "Number of sentences for all speeches is  60794\n",
+      "Number of words for Trump speeches is  11591\n",
+      "Number of sentences for Trump speeches is  613\n",
+      "Number of words for GWB speeches is  45417\n",
+      "Number of sentences for GWB speeches is  2175\n",
+      "Number of words for post-WWII speeches is  513184\n",
+      "Number of sentences for post-WWII speeches is  21963\n",
+      "Number of words for high immigration speeches is  704063\n",
+      "Number of sentences for high immigration speeches is  20583\n"
+     ]
+    }
+   ],
+   "source": [
+    "all_words = word_tokenize(all_text)\n",
+    "all_sents = sent_tokenize(all_text)\n",
+    "print(\"Number of words for all speeches is \", len(all_words))\n",
+    "print(\"Number of sentences for all speeches is \", len(all_sents))\n",
+    "\n",
+    "trump_words = word_tokenize(trump_text)\n",
+    "trump_sents = sent_tokenize(trump_text)\n",
+    "print(\"Number of words for Trump speeches is \", len(trump_words))\n",
+    "print(\"Number of sentences for Trump speeches is \", len(trump_sents))\n",
+    "\n",
+    "gwb_words = word_tokenize(gwb_text)\n",
+    "gwb_sents = sent_tokenize(gwb_text)\n",
+    "print(\"Number of words for GWB speeches is \", len(gwb_words))\n",
+    "print(\"Number of sentences for GWB speeches is \", len(gwb_sents))\n",
+    "\n",
+    "modern_words = word_tokenize(modern_text)\n",
+    "modern_sents = sent_tokenize(modern_text)\n",
+    "print(\"Number of words for post-WWII speeches is \", len(modern_words))\n",
+    "print(\"Number of sentences for post-WWII speeches is \", len(modern_sents))\n",
+    "\n",
+    "high_words = word_tokenize(high_text)\n",
+    "high_sents = sent_tokenize(high_text)\n",
+    "print(\"Number of words for high immigration speeches is \", len(high_words))\n",
+    "print(\"Number of sentences for high immigration speeches is \", len(high_sents))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### <font color = \"blue\">Checking for immigration mentions in the various speech groups"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Number of sentences about immigration is  1180\n",
+      "This is  0.01940981017863605 percent of the speech.\n"
+     ]
+    }
+   ],
+   "source": [
+    "immigrant_words = [\"immigrant\", \"immigrate\", \"immigrants\", \"immigration\", \"alien\", \"aliens\", \"migrant\", \"migrants\", \"foreigners\", \"foreigner\", \"border\", \"borders\"]\n",
+    "\n",
+    "\n",
+    "all_imm_sents = []\n",
+    "for sents in all_sents:\n",
+    "    for words in immigrant_words:\n",
+    "        if words in sents.lower():\n",
+    "            all_imm_sents.append(sents)\n",
+    "\n",
+    "print(\"Number of sentences about immigration is \",len(all_imm_sents))\n",
+    "all_imm_perc = len(all_imm_sents)/len(all_sents)\n",
+    "print(\"This is \", all_imm_perc, \"percent of the speech.\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Number of sentences about immigration is  44\n",
+      "This is  0.07177814029363784 percent of the speech.\n"
+     ]
+    }
+   ],
+   "source": [
+    "trump_imm_sents = []\n",
+    "for sents in trump_sents:\n",
+    "    for words in immigrant_words:\n",
+    "        if words in sents.lower():\n",
+    "            trump_imm_sents.append(sents)\n",
+    "\n",
+    "print(\"Number of sentences about immigration is \",len(trump_imm_sents))\n",
+    "trump_imm_perc = len(trump_imm_sents)/len(trump_sents)\n",
+    "print(\"This is \", trump_imm_perc, \"percent of the speech.\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Number of sentences about immigration is  51\n",
+      "This is  0.023448275862068966 percent of the speech.\n"
+     ]
+    }
+   ],
+   "source": [
+    "gwb_imm_sents = []\n",
+    "for sents in gwb_sents:\n",
+    "    for words in immigrant_words:\n",
+    "        if words in sents.lower():\n",
+    "            gwb_imm_sents.append(sents)\n",
+    "\n",
+    "print(\"Number of sentences about immigration is \",len(gwb_imm_sents))\n",
+    "gwb_imm_perc = len(gwb_imm_sents)/len(gwb_sents)\n",
+    "print(\"This is \", gwb_imm_perc, \"percent of the speech.\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 12,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Number of sentences about immigration is  305\n",
+      "This is  0.013886991758867186 percent of the speech.\n"
+     ]
+    }
+   ],
+   "source": [
+    "modern_imm_sents = []\n",
+    "for sents in modern_sents:\n",
+    "    for words in immigrant_words:\n",
+    "        if words in sents.lower():\n",
+    "            modern_imm_sents.append(sents)\n",
+    "\n",
+    "print(\"Number of sentences about immigration is \",len(modern_imm_sents))\n",
+    "modern_imm_perc = len(modern_imm_sents)/len(modern_sents)\n",
+    "print(\"This is \", modern_imm_perc, \"percent of the speech.\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Number of sentences about immigration is  587\n",
+      "This is  0.028518680464460964 percent of the speech.\n"
+     ]
+    }
+   ],
+   "source": [
+    "high_imm_sents = []\n",
+    "for sents in high_sents:\n",
+    "    for words in immigrant_words:\n",
+    "        if words in sents.lower():\n",
+    "            high_imm_sents.append(sents)\n",
+    "\n",
+    "print(\"Number of sentences about immigration is \",len(high_imm_sents))\n",
+    "high_imm_perc = len(high_imm_sents)/len(high_sents)\n",
+    "print(\"This is \", high_imm_perc, \"percent of the speech.\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "<font color = \"green\"><b>Trump mentions immigration terms at a conspicuously high rate.</b></font><br>\n",
+    "<br>Trump mentions terms like 'immigrant' and 'foreigner' in approximately 7.2% of his State of The Union speech sentences.  This is far above the norm for presidential SOTU speeches, which is less than 2%.<br><br>\n",
+    "Is that because times have changed?  It doesn't appear so.  Presidents since WWII have mentioned these terms even less than Presidents who preceded them.  <br><br>\n",
+    "Maybe it is a phenomenon of speaking during a time of high immigration?  Looking at SOTU speeches during high (13%+, or roughly equal to or greater than the immigration percentage during Trump's time in office), there are more mentions of immigration terms.  But these are still only mentioned in approximately 2.9% of their speeches, less than half the frequency of Trump.. <br><br>\n",
+    "How about testing if this is a modern Republican talking point--how often did George W. Bush bring up these topics?  More often than the norm, but still only about 2% of his sentences mentioned this, which is less than 1/3 as often as Donald Trump."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### <font color = \"blue\">Looking at sentiment of sentences that discuss immigration"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "trump_neg = 0\n",
+    "trump_pos = 0\n",
+    "trump_p = []\n",
+    "for phrase in trump_imm_sents:\n",
+    "    N = TextBlob(phrase, analyzer = NaiveBayesAnalyzer()).sentiment\n",
+    "    if N[0] == 'neg':\n",
+    "        trump_neg += 1\n",
+    "    else:\n",
+    "        trump_pos += 1\n",
+    "    P = TextBlob(phrase).sentiment.polarity\n",
+    "    trump_p.append(P)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 19,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Naive Bayes showed  4 negative sentences and  40 positive sentences.\n",
+      "Average TextBlob sentiment polarity is  0.05404177051904326\n"
+     ]
+    }
+   ],
+   "source": [
+    "print(\"Naive Bayes showed \", trump_neg, \"negative sentences and \", trump_pos, \"positive sentences.\")\n",
+    "print(\"Average TextBlob sentiment polarity is \", sum(trump_p)/len(trump_p))\n",
+    "#print(trump_p)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 61,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "all_neg = 0\n",
+    "all_pos = 0\n",
+    "all_p = []\n",
+    "for phrase in all_imm_sents:\n",
+    "    N = TextBlob(phrase, analyzer = NaiveBayesAnalyzer()).sentiment\n",
+    "    if N[0] == 'neg':\n",
+    "        all_neg += 1\n",
+    "    else:\n",
+    "        all_pos += 1\n",
+    "    P = TextBlob(phrase).sentiment.polarity\n",
+    "    all_p.append(P)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 62,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Naive Bayes showed  55 negative sentences and  1125 positive sentences.\n",
+      "Average TextBlob sentiment polarity is  0.10206988255948621\n"
+     ]
+    }
+   ],
+   "source": [
+    "print(\"Naive Bayes showed \", all_neg, \"negative sentences and \", all_pos, \"positive sentences.\")\n",
+    "print(\"Average TextBlob sentiment polarity is \", ((sum(all_p))/len(all_p)))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "<font color = \"green\"><b>Sentiment of Trump's comments on immigration do not appear to be overly negative.</b></font><br><br>  Using standard TextBlob polarity and the TextBlob Naive Bayes classifier, the Trump immigration sentences seem slightly positive, with a polarity of around 0.054 (P) and 40 positive sentences to 4 negative sentences, respectively (Bayes).\n",
+    "<br><br>\n",
+    "This compares with the entire set of SOU speeches which showed an overall polarity for immigration sentences of approximately 0.1 (P) with 55 negative sentences and 1125 positive sentences (Bayes).  So, the average Presidential speaker was more positive on immigration than trump, but both were more positive than negative."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### <font color = \"blue\">TF/IDF, Bag of Words"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 15,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "stop_words = stopwords.words('english') + list(punctuation)\n",
+    "#print(stop_words[0:30])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 16,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Cleanup of bag of words from each text set\n",
+    "\n",
+    "all_clean = []\n",
+    "for word in all_words:\n",
+    "    word = word.lower()\n",
+    "    if word not in stop_words:\n",
+    "        if not word.isdigit():\n",
+    "            all_clean.append(word)\n",
+    "\n",
+    "trump_clean = []\n",
+    "for word in trump_words:\n",
+    "    word = word.lower()\n",
+    "    if word not in stop_words:\n",
+    "        if not word.isdigit():\n",
+    "            trump_clean.append(word)\n",
+    "    \n",
+    "gwb_clean = []\n",
+    "for word in gwb_words:\n",
+    "    word = word.lower()\n",
+    "    if word not in stop_words:\n",
+    "        if not word.isdigit():\n",
+    "            gwb_clean.append(word)\n",
+    "\n",
+    "modern_clean = []\n",
+    "for word in modern_words:\n",
+    "    word = word.lower()\n",
+    "    if word not in stop_words:\n",
+    "        if not word.isdigit():\n",
+    "            modern_clean.append(word)\n",
+    "    \n",
+    "high_clean = []\n",
+    "for word in high_words:\n",
+    "    word = word.lower()\n",
+    "    if word not in stop_words:\n",
+    "        if not word.isdigit():\n",
+    "            high_clean.append(word)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 38,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "all_quotes =  \" \".join(all_clean)\n",
+    "trump_quotes = \" \".join(trump_clean)\n",
+    "gwb_quotes = \" \".join(gwb_clean)\n",
+    "modern_quotes = \" \".join(modern_clean)\n",
+    "high_quotes = \" \".join(high_clean)\n",
+    "#all_quotes[0:50]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 39,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "new_list = [all_quotes, trump_quotes, gwb_quotes, modern_quotes, high_quotes]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 40,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "vectorizer = TfidfVectorizer(ngram_range=(1, 2))\n",
+    "\n",
+    "trump_vectors = vectorizer.fit_transform(new_list)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 41,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "feature_names = vectorizer.get_feature_names()\n",
+    "\n",
+    "dense = trump_vectors.todense()\n",
+    "denselist = dense.tolist()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 42,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# creating a Pandas dataframe with the  feature names as columns and the documents as rows\n",
+    "wordsdf = pd.DataFrame(denselist, columns=feature_names) #, index=speaker_names)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 43,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#transpose dataframe \n",
+    "wordsdf_t = wordsdf.T"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 56,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "wordsdf_t.columns = ['All Presidents', 'Trump', 'GW Bush', 'Post WWII', \"High Immigration Presidents\"]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 57,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>All Presidents</th>\n",
+       "      <th>Trump</th>\n",
+       "      <th>GW Bush</th>\n",
+       "      <th>Post WWII</th>\n",
+       "      <th>High Immigration Presidents</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <td>00</td>\n",
+       "      <td>0.005701</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.000517</td>\n",
+       "      <td>0.007249</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>00 085</td>\n",
+       "      <td>0.000076</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>00 107</td>\n",
+       "      <td>0.000076</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>00 12</td>\n",
+       "      <td>0.000152</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>00 127</td>\n",
+       "      <td>0.000076</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>00 14</td>\n",
+       "      <td>0.000228</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>00 148</td>\n",
+       "      <td>0.000076</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>00 15</td>\n",
+       "      <td>0.000076</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>00 17</td>\n",
+       "      <td>0.000152</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>00 171</td>\n",
+       "      <td>0.000076</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>00 191</td>\n",
+       "      <td>0.000076</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>00 20</td>\n",
+       "      <td>0.000076</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>00 21</td>\n",
+       "      <td>0.000076</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>00 257</td>\n",
+       "      <td>0.000076</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>00 275</td>\n",
+       "      <td>0.000076</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>00 28</td>\n",
+       "      <td>0.000152</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>00 282</td>\n",
+       "      <td>0.000076</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>00 287</td>\n",
+       "      <td>0.000076</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>00 292</td>\n",
+       "      <td>0.000076</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <td>00 296</td>\n",
+       "      <td>0.000076</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.0</td>\n",
+       "      <td>0.000000</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "        All Presidents  Trump  GW Bush  Post WWII  High Immigration Presidents\n",
+       "00            0.005701    0.0      0.0   0.000517                     0.007249\n",
+       "00 085        0.000076    0.0      0.0   0.000000                     0.000000\n",
+       "00 107        0.000076    0.0      0.0   0.000000                     0.000000\n",
+       "00 12         0.000152    0.0      0.0   0.000000                     0.000000\n",
+       "00 127        0.000076    0.0      0.0   0.000000                     0.000000\n",
+       "00 14         0.000228    0.0      0.0   0.000000                     0.000000\n",
+       "00 148        0.000076    0.0      0.0   0.000000                     0.000000\n",
+       "00 15         0.000076    0.0      0.0   0.000000                     0.000000\n",
+       "00 17         0.000152    0.0      0.0   0.000000                     0.000000\n",
+       "00 171        0.000076    0.0      0.0   0.000000                     0.000000\n",
+       "00 191        0.000076    0.0      0.0   0.000000                     0.000000\n",
+       "00 20         0.000076    0.0      0.0   0.000000                     0.000000\n",
+       "00 21         0.000076    0.0      0.0   0.000000                     0.000000\n",
+       "00 257        0.000076    0.0      0.0   0.000000                     0.000000\n",
+       "00 275        0.000076    0.0      0.0   0.000000                     0.000000\n",
+       "00 28         0.000152    0.0      0.0   0.000000                     0.000000\n",
+       "00 282        0.000076    0.0      0.0   0.000000                     0.000000\n",
+       "00 287        0.000076    0.0      0.0   0.000000                     0.000000\n",
+       "00 292        0.000076    0.0      0.0   0.000000                     0.000000\n",
+       "00 296        0.000076    0.0      0.0   0.000000                     0.000000"
+      ]
+     },
+     "execution_count": 57,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "wordsdf_t[0:20]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 46,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "top_terms = []\n",
+    "for columns in wordsdf_t:\n",
+    "    top_terms.append(wordsdf_t.nlargest(30, columns))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 68,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Trump's top spoken terms are                        0         1         2         3         4\n",
+      "american       0.094964  0.240279  0.115533  0.122301  0.092462\n",
+      "america        0.062005  0.210244  0.270743  0.160903  0.030470\n",
+      "us             0.087539  0.165192  0.147042  0.157594  0.055592\n",
+      "people         0.145270  0.153929  0.197223  0.200730  0.133152\n",
+      "new            0.105793  0.150174  0.138873  0.178917  0.074122\n",
+      "one            0.101483  0.150174  0.099195  0.113355  0.100485\n",
+      "americans      0.029699  0.146420  0.108531  0.083944  0.017193\n",
+      "country        0.122453  0.138911  0.131871  0.090439  0.118156\n",
+      "tonight        0.018181  0.135157  0.085191  0.061150  0.008788\n",
+      "year           0.143641  0.116385  0.099195  0.174015  0.146238\n",
+      "great          0.116224  0.108876  0.074688  0.079777  0.110419\n",
+      "world          0.088734  0.101368  0.144708  0.180388  0.042219\n",
+      "also           0.063200  0.097613  0.084024  0.080390  0.050434\n",
+      "must           0.116332  0.097613  0.219395  0.206613  0.066194\n",
+      "nation         0.073993  0.086350  0.114366  0.111762  0.053013\n",
+      "every          0.080404  0.082596  0.092193  0.099262  0.069633\n",
+      "work           0.066025  0.082596  0.087525  0.098650  0.078802\n",
+      "congress       0.179279  0.078841  0.120201  0.159923  0.162858\n",
+      "united         0.172905  0.078841  0.071187  0.092890  0.185305\n",
+      "many           0.061498  0.075087  0.077022  0.068258  0.052248\n",
+      "tax            0.029192  0.075087  0.089859  0.065072  0.018148\n",
+      "time           0.103873  0.075087  0.067686  0.104409  0.096187\n",
+      "home           0.025425  0.071333  0.033843  0.043136  0.021874\n",
+      "last           0.094420  0.071333  0.056016  0.079165  0.093608\n",
+      "citizens       0.065699  0.067578  0.072354  0.042033  0.062373\n",
+      "states         0.232990  0.067578  0.066519  0.119482  0.255415\n",
+      "united states  0.161424  0.067578  0.053682  0.069484  0.181102\n",
+      "want           0.016878  0.067578  0.035010  0.038847  0.011749\n",
+      "together       0.025860  0.063824  0.056016  0.054533  0.014710\n",
+      "years          0.082577  0.063824  0.099195  0.140193  0.064952\n",
+      "This is fairly generic and doesn't immediately point to differences with the overall top terms:                        0         1         2         3         4\n",
+      "government     0.255047  0.052561  0.107364  0.162374  0.266209\n",
+      "states         0.232990  0.067578  0.066519  0.119482  0.255415\n",
+      "congress       0.179279  0.078841  0.120201  0.159923  0.162858\n",
+      "united         0.172905  0.078841  0.071187  0.092890  0.185305\n",
+      "united states  0.161424  0.067578  0.053682  0.069484  0.181102\n",
+      "people         0.145270  0.153929  0.197223  0.200730  0.133152\n",
+      "year           0.143641  0.116385  0.099195  0.174015  0.146238\n",
+      "upon           0.142156  0.011263  0.007002  0.032107  0.175085\n",
+      "would          0.136614  0.018772  0.063018  0.079777  0.133821\n",
+      "country        0.122453  0.138911  0.131871  0.090439  0.118156\n",
+      "may            0.122417  0.007509  0.017505  0.042401  0.121403\n",
+      "must           0.116332  0.097613  0.219395  0.206613  0.066194\n",
+      "great          0.116224  0.108876  0.074688  0.079777  0.110419\n",
+      "made           0.113290  0.030035  0.028008  0.062376  0.118729\n",
+      "public         0.110936  0.015017  0.023340  0.049509  0.097619\n",
+      "000            0.106119  0.041298  0.040845  0.049509  0.115386\n",
+      "new            0.105793  0.150174  0.138873  0.178917  0.074122\n",
+      "time           0.103873  0.075087  0.067686  0.104409  0.096187\n",
+      "one            0.101483  0.150174  0.099195  0.113355  0.100485\n",
+      "war            0.101193  0.022526  0.065352  0.094851  0.074695\n",
+      "shall          0.096360  0.000000  0.000000  0.057698  0.087932\n",
+      "american       0.094964  0.240279  0.115533  0.122301  0.092462\n",
+      "last           0.094420  0.071333  0.056016  0.079165  0.093608\n",
+      "world          0.088734  0.101368  0.144708  0.180388  0.042219\n",
+      "us             0.087539  0.165192  0.147042  0.157594  0.055592\n",
+      "years          0.082577  0.063824  0.099195  0.140193  0.064952\n",
+      "every          0.080404  0.082596  0.092193  0.099262  0.069633\n",
+      "state          0.077253  0.037544  0.026841  0.050979  0.070206\n",
+      "national       0.076529  0.033789  0.028008  0.079410  0.068678\n",
+      "law            0.075007  0.015017  0.047847  0.036641  0.100676\n"
+     ]
+    }
+   ],
+   "source": [
+    "print(\"Trump's top spoken terms are \", top_terms[1])\n",
+    "print(\"This is fairly generic and doesn't immediately point to differences with the overall top terms: \", top_terms[0])"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "<font color = \"green\"><b>There does not appear to be anything peculiar about Trump's top spoken terms overall.</b></font><br>\n",
+    "\n",
+    "They seem to be as general and pertinent to the overall state of the couuntry as the most common terms used by other presidents."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### <font color = \"blue\">Use of abrasive language</font>\n",
+    "<br>\n",
+    "Let's see if Trump's use of potentially abrasive terms like 'border wall' and 'illegal immigrant' are more prevalent to his speech than others"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 66,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "0    0.000000\n",
+      "1    0.015758\n",
+      "2    0.000000\n",
+      "3    0.000000\n",
+      "4    0.000000\n",
+      "Name: illegal immigrant, dtype: float64 0    0.002390\n",
+      "1    0.011263\n",
+      "2    0.010503\n",
+      "3    0.003921\n",
+      "4    0.001815\n",
+      "Name: illegal, dtype: float64 0    0.001050\n",
+      "1    0.007509\n",
+      "2    0.003501\n",
+      "3    0.002941\n",
+      "4    0.001337\n",
+      "Name: wall, dtype: float64 0    0.003948\n",
+      "1    0.022526\n",
+      "2    0.019839\n",
+      "3    0.003799\n",
+      "4    0.003725\n",
+      "Name: border, dtype: float64\n"
+     ]
+    }
+   ],
+   "source": [
+    "# I'll look for some terms that might have negative connotations about immigration and immigrants.\n",
+    "\n",
+    "print(wordsdf[\"illegal immigrant\"], wordsdf[\"illegal\"], wordsdf[\"wall\"], wordsdf[\"border\"])\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "<font color = \"green\"><b>Trump does use potentailly divisive terms around immigration much more often.</b></font><br>\n",
+    "\n",
+    "Trump used the term \"illegal immigrant\" frequently and this term was not used by any other president--as it was found at 0%, even for the corpus containing all State of the Union speeches.\n",
+    "\n",
+    "Trump mentioned the term \"illegal\" at a rate that was slightly more than George W. Bush (0.112 vs 0.0105) and much greater than previous Presidents in any other era.  So this term appears to be part of the modern parlance, moreso than specific to Trump.  This may also be notable as both Bush's and Trump's appeal as law and order presidents, who is asserting himself against groups of people that his supporters find problematic.\n",
+    "\n",
+    "The term \"wall\" is much more commonly used by Trump than Bush (0.0075 to 0.0035) and even more often than other presidential groupings.  Trump also mentions \"border\" more than Bush and much more than all, recent or high immigration era presidents.  This is notable, not just because it appears to show a stronger direction for controlling immigration, but it also means that these terms are used by him more often than some presidents who presided over wars that occcurred on our border.\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### <font color = \"blue\">Searching for a single, negative phrase</font>"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 65,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "There are  3  times Trump used the term illegal.  Here they are: [\"Jamiel's 17-year-old son was viciously\\nmurdered by an illegal immigrant gang member who had just been released\\nfrom prison.\", 'These brave\\nmen were viciously gunned down by an illegal immigrant with a criminal\\nrecord and two prior deportations.', 'Here are the four pillars of our plan:\\n\\nThe first pillar of our framework generously offers a path to\\ncitizenship for 1.8 million illegal immigrants who were brought here by\\ntheir parents at a young age -- that covers almost three times more\\npeople than the previous administration.']\n"
+     ]
+    }
+   ],
+   "source": [
+    "trump_illegal = []\n",
+    "for sents in trump_sents:\n",
+    "    if \"illegal\" in sents.lower():\n",
+    "            trump_illegal.append(sents)\n",
+    "print(\"There are \", len(trump_illegal), \" times Trump used the term illegal.  Here they are:\", trump_illegal)\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "<font color = \"green\"><b>A qualitative look at Trump's use of 'illegal immigrant(s)'</b></font><br>\n",
+    "\n",
+    "Trump used the sentence 'illegal immigrant(s)' three times in his speeches.  While this term is in common parlance and is not automatically ill-intentioned, the use of the term by Trump was clearly in a negative context in two of the three sentences--attributing murder of a child and then multiple men to an illegal immigrant.  This is a small data set, but it offers an illustration of the attitudes that the larger set analysis might imply."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.7.4"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
